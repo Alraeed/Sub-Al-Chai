@@ -1,0 +1,48 @@
+name: spill_the_tea
+description: >-
+  صب الجاي (Spill the Tea) — a 100% offline, peer-to-peer,
+  Bluetooth-mesh messaging app crafted for local resilience and privacy.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
+  provider: ^6.1.2
+  flutter_secure_storage: ^11.0.0
+  cryptography: ^2.9.0
+  bluetooth_low_energy: ^6.2.1
+  hive_ce: ^2.19.3
+  hive_ce_flutter: ^2.3.4
+  path_provider: ^2.1.5
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Parastoo
+      fonts:
+        - asset: assets/fonts/Parastoo-VariableFont_wght.ttf
+    - family: ReemKufi
+      fonts:
+        - asset: assets/fonts/ReemKufi-Variable.ttf
+    - family: ArefRuqaa
+      fonts:
+        - asset: assets/fonts/ArefRuqaa-Regular.ttf
+        - asset: assets/fonts/ArefRuqaa-Bold.ttf
+          weight: 700
+  assets:
+    - assets/fonts/OFL-ReemKufi.txt
+    - assets/fonts/OFL-ArefRuqaa.txt

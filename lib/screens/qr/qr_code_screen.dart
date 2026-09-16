@@ -25,7 +25,7 @@ class QrCodeScreen extends StatelessWidget {
     final String payload = self == null ? '' : QrPayload.build(peer: self);
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.myCard)),
+      appBar: AppBar(title: Text(AppStrings.myCard)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
         child: Column(
@@ -73,7 +73,7 @@ class QrCodeScreen extends StatelessWidget {
                   ? null
                   : () => copyToClipboard(context, payload),
               icon: const Icon(Icons.copy, size: 18),
-              label: const Text('انسخ بطاقتي'),
+              label: Text(AppStrings.copyMyCard),
             ),
           ],
         ),

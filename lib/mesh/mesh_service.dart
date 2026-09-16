@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:bluetooth_low_energy/bluetooth_low_energy.dart';
+import 'package:cryptography/cryptography.dart' show SimpleKeyPair;
 import 'package:flutter/foundation.dart';
 
+import '../core/crypto/dm_ratchet.dart';
 import '../core/crypto/tea_crypto.dart';
 import '../core/utils/safe_log.dart';
 import '../core/utils/sanitizer.dart';
@@ -16,6 +18,7 @@ import 'ble_constants.dart';
 import 'fragmenter.dart';
 import 'message_envelope.dart';
 import 'protocol.dart';
+import 'session_store.dart';
 
 /// Mesh coordinator — BLE peripheral + central in one object.
 ///
@@ -84,7 +87,10 @@ class MeshService extends ChangeNotifier {
 
   IdentityMaterial? _identity;
   Uint8List _helloCache = Uint8List(0);
+  Uint8List _preKeyAnnounceCache = Uint8List(0);
   GATTCharacteristic? _localNotifyChar;
+  GATTService? _service;
+  bool _serviceAdded = false;
   String _myShortId = '';
   String? lastError;
   bool _tornDown = false;
@@ -122,10 +128,11 @@ class MeshService extends ChangeNotifier {
       !kIsWeb && _central.state == BluetoothLowEnergyState.poweredOn;
 
   Future<void> start({required IdentityMaterial identity}) async {
-    if (_tornDown) {
+    if (_tornDown || _identity != null) {
       return;
     }
     _identity = identity;
+    lastError = null;
     final Uint8List combined = Uint8List(64);
     combined.setAll(0, identity.signPublic);
     combined.setAll(32, identity.dhPublic);
@@ -136,6 +143,15 @@ class MeshService extends ChangeNotifier {
       dhPublicKey: identity.dhPublic,
       displayName: identity.displayName,
     );
+
+    if (!kIsWeb) {
+      try {
+        await DmSessionStore.open();
+        _preKeyAnnounceCache = await _buildPreKeyAnnounce();
+      } on Object catch (e) {
+        SafeLog.error('mesh', 'dm session init failed; v1 DMs only', e);
+      }
+    }
 
     if (kIsWeb) {
       notifyListeners();
@@ -151,15 +167,26 @@ class MeshService extends ChangeNotifier {
       return;
     }
 
-    final GATTService service = _buildService();
-    await _peripheral.addService(service);
-    await _peripheral.startAdvertising(
-      Advertisement(
-        name: AppStrings.appName,
-        serviceUUIDs: <UUID>[UUID.fromString(BleConstants.serviceUuid)],
-      ),
-    );
-    _advertising = true;
+    final GATTService service = _service ??= _buildService();
+    // The service is registered once per process: after a shutdown the same
+    // object must be reused, otherwise _localNotifyChar would point at a
+    // characteristic the platform never registered.
+    if (!_serviceAdded) {
+      await _peripheral.addService(service);
+      _serviceAdded = true;
+    }
+    try {
+      await _peripheral.startAdvertising(
+        Advertisement(
+          name: AppStrings.appName,
+          serviceUUIDs: <UUID>[UUID.fromString(BleConstants.serviceUuid)],
+        ),
+      );
+      _advertising = true;
+    } on Object catch (e) {
+      SafeLog.error('mesh', 'startAdvertising failed', e);
+      lastError = AppStrings.errorGeneric;
+    }
     await _startScan();
     notifyListeners();
   }
@@ -296,6 +323,10 @@ class MeshService extends ChangeNotifier {
 
       // Say hello back down the new link.
       await _sendFramesToCentral(link, _helloCache);
+      // Advertise our v2 DM pre-key so the peer can send forward-secret DMs.
+      if (_preKeyAnnounceCache.isNotEmpty) {
+        await _sendFramesToCentral(link, _preKeyAnnounceCache);
+      }
     } on Object catch (e) {
       SafeLog.error('mesh', 'link establishment failed', e);
       _centralLinks.remove(key);
@@ -605,6 +636,19 @@ class MeshService extends ChangeNotifier {
     Uint8List packet, {
     Central? fromCentral,
   }) async {
+    try {
+      await _dispatchPacket(packet, fromCentral: fromCentral);
+    } on Object catch (e) {
+      // A malformed or hostile packet must never escape as an unhandled async
+      // error and kill the listener that carried it.
+      SafeLog.error('mesh', 'packet handling failed', e);
+    }
+  }
+
+  Future<void> _dispatchPacket(
+    Uint8List packet, {
+    Central? fromCentral,
+  }) async {
     if (packet.isEmpty || !SafeInput.knowOpcode(packet[0])) {
       SafeLog.info('mesh', 'unknown opcode dropped');
       return;
@@ -623,13 +667,16 @@ class MeshService extends ChangeNotifier {
           SafeLog.info('mesh', 'hello rejected: $e');
         }
       case Opcodes.message:
-        await _handleMessageEnvelope(packet);
+        await _handleMessageEnvelope(packet, fromCentral: fromCentral);
       case Opcodes.heartbeat:
       // v1: presence rides on link state — nothing extra to do.
     }
   }
 
-  Future<void> _handleMessageEnvelope(Uint8List packet) async {
+  Future<void> _handleMessageEnvelope(
+    Uint8List packet, {
+    Central? fromCentral,
+  }) async {
     final ParsedMessageEnvelope? env;
     try {
       env = MessageEnvelopeCodec.parse(packet);
@@ -642,6 +689,12 @@ class MeshService extends ChangeNotifier {
     }
     // Flood guard — each message id is honored only once per 90s.
     if (!_centralFrames.markSeen(env.dedupKey, DateTime.now())) {
+      return;
+    }
+
+    // Public pre-key card — not a chat message; record + ack, never store.
+    if (env.isPreKeyAnnounce) {
+      await _handlePreKeyAnnounce(env, fromCentral);
       return;
     }
 
@@ -660,7 +713,7 @@ class MeshService extends ChangeNotifier {
     }
     final IdentityMaterial identity = _identity!;
 
-    final bool isBroadcast = env.kind == 0;
+    final bool isBroadcast = env.kind == MessageKinds.broadcast;
     final bool addressedToUs = env.toShortId == _myShortId;
     if (!isBroadcast && !addressedToUs) {
       // Direct message for another node — forward if we know that peer.
@@ -668,15 +721,25 @@ class MeshService extends ChangeNotifier {
       return;
     }
 
-    final Uint8List sessionKey = await TeaCrypto.deriveSessionKey(
-      myDhPair: identity.dhKeyPair,
-      theirDhPub: sender.dhPublicKey,
-      myDhPub: identity.dhPublic,
-    );
-    final String? text = await TeaCrypto.openText(
-      key: sessionKey,
-      sealed: env.sealedBody,
-    );
+    String? text;
+    if (env.isDirectV2) {
+      try {
+        text = await _openDmV2(env, sender, identity);
+      } on Object catch (e) {
+        SafeLog.error('mesh', 'v2 open failed; envelope dropped', e);
+        text = null;
+      }
+    } else {
+      final Uint8List sessionKey = await TeaCrypto.deriveSessionKey(
+        myDhPair: identity.dhKeyPair,
+        theirDhPub: sender.dhPublicKey,
+        myDhPub: identity.dhPublic,
+      );
+      text = await TeaCrypto.openText(
+        key: sessionKey,
+        sealed: env.sealedBody,
+      );
+    }
     if (text == null) {
       SafeLog.info('mesh', 'envelope undecryptable for us; not storing');
       return;
@@ -686,7 +749,7 @@ class MeshService extends ChangeNotifier {
     final String messageId = await LocalVault.saveMessage(
       threadId: threadId,
       isOutgoing: false,
-      kind: env.kind,
+      kind: isBroadcast ? MessageKinds.broadcast : MessageKinds.direct,
       fromShortId: env.fromShortId,
       toShortId: env.toShortId,
       text: text,
@@ -697,6 +760,45 @@ class MeshService extends ChangeNotifier {
 
     if (_relayEnabled && isBroadcast && env.hopLimit > 1) {
       await _relayBroadcast(env, senderPeerId, text, identity);
+    }
+  }
+
+  /// Record a peer's public pre-key from its announcement and, when we are the
+  /// peripheral on that link, answer with ours so pre-keys flow both ways.
+  Future<void> _handlePreKeyAnnounce(
+    ParsedMessageEnvelope env,
+    Central? fromCentral,
+  ) async {
+    final String? peerId = _peerIdByShortId[env.fromShortId];
+    final Uint8List? pub = env.escrowPub;
+    final int? epoch = env.preKeyEpoch;
+    if (peerId == null || pub == null || pub.length != 32 || epoch == null) {
+      return;
+    }
+    final Peer? existing = _onlinePeers[peerId] ?? LocalVault.peerById(peerId);
+    if (existing == null) {
+      return;
+    }
+    final Peer updated = Peer(
+      id: existing.id,
+      displayName: existing.displayName,
+      signPublicKey: existing.signPublicKey,
+      dhPublicKey: existing.dhPublicKey,
+      shortId: existing.shortId,
+      firstSeenAt: existing.firstSeenAt,
+      lastSeenAt: existing.lastSeenAt,
+      isOnline: existing.isOnline,
+      preKeyPublic: pub,
+      preKeyEpoch: epoch,
+    );
+    _onlinePeers[peerId] = updated;
+    unawaited(LocalVault.upsertPeer(updated));
+    if (fromCentral != null) {
+      final String key = fromCentral.uuid.toString();
+      final _PeripheralLink? link = _peripheralLinks[key];
+      if (link != null && _preKeyAnnounceCache.isNotEmpty) {
+        unawaited(_sendFramesToPeripheral(link, _preKeyAnnounceCache));
+      }
     }
   }
 
@@ -758,6 +860,213 @@ class MeshService extends ChangeNotifier {
       sealedBody: env.sealedBody,
     );
     await _sendPacketTo(peerId, Uint8List.fromList(rebuilt));
+  }
+
+  // --------------------------------------------------------- v2 DM crypto
+
+  Future<Uint8List> _buildPreKeyAnnounce() async {
+    final PreKey preKey = await DmSessionStore.rotatePreKey();
+    return Uint8List.fromList(
+      MessageEnvelopeCodec.build(
+        msgId: TeaCrypto.randomBytes(16),
+        kind: MessageKinds.preKeyAnnounce,
+        hopLimit: 1,
+        fromShortId: _myShortId,
+        toShortId: '',
+        utcMs: DateTime.now().millisecondsSinceEpoch,
+        sealedBody: Uint8List(0),
+        escrowPub: preKey.publicKey,
+        preKeyEpoch: preKey.epoch,
+      ),
+    );
+  }
+
+  /// Seal one direct message with the v2 forward-secret X3DH + chain ratchet.
+  /// Returns null when the peer has not announced a pre-key yet (the caller
+  /// then falls back to the legacy deterministic-session seal).
+  Future<_V2SealResult?> _sealDmV2({
+    required String text,
+    required Peer to,
+    required IdentityMaterial identity,
+  }) async {
+    final Uint8List? prePub = to.preKeyPublic;
+    final int preEpoch = to.preKeyEpoch;
+    if (prePub == null || prePub.length != 32) {
+      return null;
+    }
+    if (!DmSessionStore.isOpen) {
+      // v2 needs the encrypted session store; without it we fall back to the
+      // legacy sealed session rather than dropping the message.
+      return null;
+    }
+    final OutboundDmState? state = await DmSessionStore.loadOutbound(to.id);
+    late OutboundDmState use;
+    if (state == null || state.theirPreKeyEpoch != preEpoch) {
+      final SimpleKeyPair eph = await TeaCrypto.newEphemeralDhPair();
+      final Uint8List ephPriv = await TeaCrypto.keyPairBytes(eph);
+      final Uint8List ephPub = await TeaCrypto.publicKeyBytes(eph);
+      final Uint8List root = await TeaCrypto.deriveDmRoot(
+        myStaticPair: identity.dhKeyPair,
+        myEphemeralPair: eph,
+        theirPreKeyPub: prePub,
+        theirStaticPub: to.dhPublicKey,
+      );
+      final Uint8List chain =
+          await TeaCrypto.dmDirectionChain(root: root, initiator: true);
+      use = OutboundDmState(
+        ephemeralPriv: ephPriv,
+        ephemeralPub: ephPub,
+        theirPreKeyEpoch: preEpoch,
+        chainKey: chain,
+        nextIndex: 0,
+      );
+    } else {
+      use = state;
+    }
+    final DmRatchetStep step = await TeaCrypto.dmRatchetStep(
+        chainKey: use.chainKey, step: use.nextIndex);
+    final Uint8List sealedBody =
+        await TeaCrypto.sealText(key: step.messageKey, text: text);
+    return _V2SealResult(
+      sealedBody: sealedBody,
+      escrowPub: use.ephemeralPub,
+      dmIndex: use.nextIndex,
+      preKeyEpoch: use.theirPreKeyEpoch,
+      nextChainKey: step.nextChainKey,
+      baseState: use,
+    );
+  }
+
+  /// Open a v2 direct message for us, advancing the inbound ratchet and the
+  /// skip window only after the AEAD tag verifies. Returns null on any
+  /// failure (wrong pre-key, replayed index, tamper, hostile chain index).
+  Future<String?> _openDmV2(
+    ParsedMessageEnvelope env,
+    Peer sender,
+    IdentityMaterial identity,
+  ) async {
+    final Uint8List? escrow = env.escrowPub;
+    final int? index = env.dmIndex;
+    final int? epoch = env.preKeyEpoch;
+    if (!DmSessionStore.isOpen) {
+      return null;
+    }
+    if (escrow == null ||
+        escrow.length != 32 ||
+        index == null ||
+        epoch == null) {
+      return null;
+    }
+    final PreKey? preKey = await DmSessionStore.preKeyForEpoch(epoch);
+    if (preKey == null) {
+      return null; // we rotated away the epoch long ago (or hostile value)
+    }
+    final InboundDmState? loaded = await DmSessionStore.loadInbound(sender.id);
+    final bool sameSession = loaded != null &&
+        loaded.myPreKeyEpoch == epoch &&
+        _bytesEqual(loaded.theirEphPub, escrow);
+
+    if (sameSession) {
+      final InboundDmState current = loaded;
+      if (index < current.recvN) {
+        // Out-of-order straggler left behind by an earlier fast-forward.
+        final Uint8List? lateKey = current.skipped[index];
+        if (lateKey == null) {
+          return null; // too old — outside the bounded skip window
+        }
+        final String? lateText =
+            await TeaCrypto.openText(key: lateKey, sealed: env.sealedBody);
+        if (lateText == null) {
+          return null; // tag mismatch — never mix keys
+        }
+        final Map<int, Uint8List> pruned = <int, Uint8List>{};
+        for (final MapEntry<int, Uint8List> e in current.skipped.entries) {
+          if (e.key != index) {
+            pruned[e.key] = e.value;
+          }
+        }
+        await DmSessionStore.saveInbound(
+          sender.id,
+          InboundDmState(
+            theirEphPub: current.theirEphPub,
+            myPreKeyEpoch: current.myPreKeyEpoch,
+            recvChainKey: current.recvChainKey,
+            recvN: current.recvN,
+            skipped: pruned,
+          ),
+        );
+        return lateText;
+      }
+      final DmWalkResult walk;
+      try {
+        walk = await DmRatchet.walk(
+          chainKey: current.recvChainKey,
+          fromIndex: current.recvN,
+          toIndex: index,
+        );
+      } on FormatException {
+        return null; // hostile index — never trust the wire
+      }
+      final String? text = await TeaCrypto.openText(
+          key: walk.messageKey, sealed: env.sealedBody);
+      if (text == null) {
+        return null;
+      }
+      final InboundDmState advanced = current.advanced(
+        chain: walk.nextChainKey,
+        next: index + 1,
+        added: walk.intermediates,
+      );
+      await DmSessionStore.saveInbound(sender.id, advanced);
+      return text;
+    }
+
+    // Brand-new session initiated by the sender.
+    final SimpleKeyPair preKeyPair =
+        await TeaCrypto.dhPairFromSeed(preKey.seed);
+    final Uint8List root = await TeaCrypto.deriveDmRoot(
+      myStaticPair: identity.dhKeyPair,
+      myEphemeralPair: preKeyPair,
+      theirPreKeyPub: escrow,
+      theirStaticPub: sender.dhPublicKey,
+    );
+    final Uint8List chain =
+        await TeaCrypto.dmDirectionChain(root: root, initiator: true);
+    final DmWalkResult walk;
+    try {
+      walk =
+          await DmRatchet.walk(chainKey: chain, fromIndex: 0, toIndex: index);
+    } on FormatException {
+      return null; // hostile index — never trust the wire
+    }
+    final String? text =
+        await TeaCrypto.openText(key: walk.messageKey, sealed: env.sealedBody);
+    if (text == null) {
+      return null;
+    }
+    final InboundDmState advanced = InboundDmState.fresh(
+      theirEphPub: Uint8List.fromList(escrow),
+      myPreKeyEpoch: epoch,
+      recvChainKey: walk.nextChainKey,
+      openedThrough: index + 1,
+    ).advanced(
+      chain: walk.nextChainKey,
+      next: index + 1,
+      added: walk.intermediates,
+    );
+    await DmSessionStore.saveInbound(sender.id, advanced);
+    return text;
+  }
+
+  static bool _bytesEqual(Uint8List a, Uint8List b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    int diff = 0;
+    for (int i = 0; i < a.length; i++) {
+      diff |= a[i] ^ b[i];
+    }
+    return diff == 0;
   }
 
   Future<bool> _sendPacketTo(String peerId, Uint8List packet) async {
@@ -899,25 +1208,60 @@ class MeshService extends ChangeNotifier {
       return const SendResult(0, 0);
     }
     final IdentityMaterial identity = _identity!;
-    final Uint8List sessionKey = await TeaCrypto.deriveSessionKey(
-      myDhPair: identity.dhKeyPair,
-      theirDhPub: to.dhPublicKey,
-      myDhPub: identity.dhPublic,
-    );
-    final Uint8List sealedBody = await TeaCrypto.sealText(
-      key: sessionKey,
-      text: text,
-    );
+    final Uint8List msgId = TeaCrypto.randomBytes(16);
+    final int utcMs = DateTime.now().millisecondsSinceEpoch;
+
+    // v2 (forward-secret) first; fall back to the legacy deterministic
+    // session only while the peer has not announced a pre-key yet.
+    _V2SealResult? v2;
+    try {
+      v2 = await _sealDmV2(text: text, to: to, identity: identity);
+    } on Object catch (e) {
+      // Any fault inside the v2 path must never lose the message: fall back to
+      // the legacy sealed session for this send.
+      SafeLog.error('mesh', 'v2 seal failed; using legacy path', e);
+      v2 = null;
+    }
+    final Uint8List sealedBody;
+    final int kind;
+    Uint8List? escrowPub;
+    int dmIndex = 0;
+    int preKeyEpoch = 0;
+    if (v2 != null) {
+      sealedBody = v2.sealedBody;
+      kind = MessageKinds.directV2;
+      escrowPub = v2.escrowPub;
+      dmIndex = v2.dmIndex;
+      preKeyEpoch = v2.preKeyEpoch;
+    } else {
+      final Uint8List sessionKey = await TeaCrypto.deriveSessionKey(
+        myDhPair: identity.dhKeyPair,
+        theirDhPub: to.dhPublicKey,
+        myDhPub: identity.dhPublic,
+      );
+      sealedBody = await TeaCrypto.sealText(key: sessionKey, text: text);
+      kind = MessageKinds.direct;
+    }
     final List<int> envelope = MessageEnvelopeCodec.build(
-      msgId: TeaCrypto.randomBytes(16),
-      kind: 1,
+      msgId: msgId,
+      kind: kind,
       hopLimit: 1,
       fromShortId: _myShortId,
       toShortId: to.shortId,
-      utcMs: DateTime.now().millisecondsSinceEpoch,
+      utcMs: utcMs,
       sealedBody: sealedBody,
+      escrowPub: escrowPub,
+      dmIndex: dmIndex,
+      preKeyEpoch: preKeyEpoch,
     );
     final bool sent = await _sendPacketTo(to.id, Uint8List.fromList(envelope));
+    if (v2 != null && sent) {
+      // Advance the outbound chain only once the packet left on the radio.
+      await DmSessionStore.saveOutbound(
+        to.id,
+        v2.baseState.advance(v2.nextChainKey),
+      );
+    }
     await LocalVault.saveMessage(
       threadId: to.id,
       isOutgoing: true,
@@ -938,16 +1282,15 @@ class MeshService extends ChangeNotifier {
     super.dispose();
   }
 
-  /// Full teardown — stops radios, closes the event sink.
+  /// Teardown of the radios and all in-memory mesh state.
+  ///
+  /// Unlike [dispose] this is *reversible*: [start] can bring the mesh back up
+  /// in the same process, which the destructive-erase flow needs because it
+  /// drops straight back into onboarding. The event sink stays open so UI
+  /// listeners survive the cycle.
   Future<void> shutdown() async {
     if (_tornDown) {
       return;
-    }
-    _tornDown = true;
-    try {
-      await _events.close();
-    } on Object catch (e) {
-      SafeLog.error('mesh', 'close events failed', e);
     }
     try {
       await _central.stopDiscovery();
@@ -959,6 +1302,17 @@ class MeshService extends ChangeNotifier {
     } on Object catch (e) {
       SafeLog.error('mesh', 'stopAdvertising during teardown', e);
     }
+    _scanning = false;
+    _advertising = false;
+    _centralLinks.clear();
+    _peripheralLinks.clear();
+    _peerIdByShortId.clear();
+    _onlinePeers.clear();
+    _identity = null;
+    _helloCache = Uint8List(0);
+    _preKeyAnnounceCache = Uint8List(0);
+    _myShortId = '';
+    notifyListeners();
   }
 }
 
@@ -967,6 +1321,26 @@ class SendResult {
 
   final int delivered;
   final int total;
+}
+
+/// Result of one v2 DM seal: the ciphertext plus everything the envelope
+/// needs, and the chain transition to commit after a successful send.
+class _V2SealResult {
+  const _V2SealResult({
+    required this.sealedBody,
+    required this.escrowPub,
+    required this.dmIndex,
+    required this.preKeyEpoch,
+    required this.nextChainKey,
+    required this.baseState,
+  });
+
+  final Uint8List sealedBody;
+  final Uint8List escrowPub;
+  final int dmIndex;
+  final int preKeyEpoch;
+  final Uint8List nextChainKey;
+  final OutboundDmState baseState;
 }
 
 /// Events surfaced to the UI (never carries plaintext).

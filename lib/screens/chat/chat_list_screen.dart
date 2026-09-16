@@ -67,9 +67,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
       padding: const EdgeInsets.only(top: 60),
       child: Column(
         children: <Widget>[
-          const Icon(Icons.local_cafe_outlined, size: 56, color: AppPalette.brass),
+          const Icon(Icons.local_cafe_outlined,
+              size: 56, color: AppPalette.brass),
           const SizedBox(height: 14),
-          Text(AppStrings.emptyChats, style: Theme.of(context).textTheme.titleMedium),
+          Text(AppStrings.emptyChats,
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 6),
           Text(
             AppStrings.emptyChatsHint,
@@ -82,7 +84,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Widget _threadTile(BuildContext context, ThreadSummary thread) {
-    final bool isNeighborhood = thread.threadId == MeshService.neighborhoodThread;
+    final bool isNeighborhood =
+        thread.threadId == MeshService.neighborhoodThread;
     final Peer? peer =
         isNeighborhood ? null : LocalVault.peerById(thread.threadId);
     final String avatarLabel = peer?.displayName ?? AppStrings.appName;
@@ -113,7 +116,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${thread.isOutgoing ? 'أنت: ' : ''}${thread.preview}',
+                        '${thread.isOutgoing ? AppStrings.youPrefix : ''}${thread.preview}',
                         style: Theme.of(context).textTheme.bodySmall,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -126,7 +129,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   children: <Widget>[
                     Text(
                       TimeFormat.listTime(thread.lastUtcMs),
-                      style: const TextStyle(fontSize: 11, color: AppPalette.ivoryDim),
+                      style: const TextStyle(
+                          fontSize: 11, color: AppPalette.ivoryDim),
                     ),
                     if (thread.unread > 0) ...<Widget>[
                       const SizedBox(height: 4),

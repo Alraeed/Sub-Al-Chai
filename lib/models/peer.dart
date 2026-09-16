@@ -16,6 +16,8 @@ class Peer {
     required this.firstSeenAt,
     required this.lastSeenAt,
     this.isOnline = false,
+    this.preKeyPublic,
+    this.preKeyEpoch = 0,
   });
 
   /// Stable identifier: base64 of signPubKey | dhPubKey.
@@ -34,6 +36,13 @@ class Peer {
   final DateTime lastSeenAt;
   final bool isOnline;
 
+  /// Peer's most recent v2 DM pre-key (public half only), learned from its
+  /// pre-key announcement. Null until the peer announces (or for legacy nodes).
+  final Uint8List? preKeyPublic;
+
+  /// Epoch of [preKeyPublic]; 0 until known.
+  final int preKeyEpoch;
+
   /// Very short human-friendly token for pairing abbreviations.
   String get friendlyCode {
     final String idx = shortId;
@@ -50,11 +59,13 @@ class Peer {
       firstSeenAt: firstSeenAt,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
       isOnline: isOnline ?? this.isOnline,
+      preKeyPublic: preKeyPublic,
+      preKeyEpoch: preKeyEpoch,
     );
   }
 
   Map<String, Object> toJson() {
-    return <String, Object>{
+    final Map<String, Object> out = <String, Object>{
       'id': id,
       'name': displayName,
       'sign': _b64(signPublicKey),
@@ -63,6 +74,12 @@ class Peer {
       'first': firstSeenAt.millisecondsSinceEpoch,
       'last': lastSeenAt.millisecondsSinceEpoch,
     };
+    final Uint8List? pre = preKeyPublic;
+    if (pre != null && pre.length == 32) {
+      out['pre'] = _b64(pre);
+      out['preEpoch'] = preKeyEpoch;
+    }
+    return out;
   }
 
   static Peer? fromJson(Map<dynamic, dynamic> json) {
@@ -80,13 +97,23 @@ class Peer {
       }
       final Uint8List? signBytes = _fromB64(sign);
       final Uint8List? dhBytes = _fromB64(dh);
-      if (signBytes == null || dhBytes == null) {
+      if (signBytes == null ||
+          dhBytes == null ||
+          signBytes.length != 32 ||
+          dhBytes.length != 32) {
+        // A peer whose key material is not exactly 32/32 bytes can never be
+        // used for a real handshake; keep it out of the registry entirely so
+        // it can never reach the crypto path.
         return null;
       }
       final String short =
           json['short'] as String? ?? _deriveShort(signBytes, dhBytes);
       final int first = json['first'] as int? ?? 0;
       final int last = json['last'] as int? ?? first;
+      final Uint8List? pre = (json['pre'] as String?) == null
+          ? null
+          : _fromB64(json['pre'] as String);
+      final Uint8List? preKey = (pre != null && pre.length == 32) ? pre : null;
       return Peer(
         id: id,
         displayName: name,
@@ -95,6 +122,8 @@ class Peer {
         shortId: short,
         firstSeenAt: DateTime.fromMillisecondsSinceEpoch(first),
         lastSeenAt: DateTime.fromMillisecondsSinceEpoch(last),
+        preKeyPublic: preKey,
+        preKeyEpoch: preKey == null ? 0 : (json['preEpoch'] as int? ?? 0),
       );
     } on Object {
       return null;

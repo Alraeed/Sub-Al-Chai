@@ -32,21 +32,31 @@ class MessagingService extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    if (!LocalVault.isOpen) {
+      // Vault closed (mid-erase / failed bootstrap): nothing to summarize, and
+      // touching the boxes here would throw out of an unawaited listener.
+      _threads = <ThreadSummary>[];
+      notifyListeners();
+      return;
+    }
     final List<StoredMessage> all = <StoredMessage>[];
     for (final Peer peer in LocalVault.allPeers()) {
       all.addAll(LocalVault.messagesFor(peer.id));
     }
     all.addAll(LocalVault.messagesFor(MeshService.neighborhoodThread));
 
-    final Map<String, List<StoredMessage>> byThread = <String, List<StoredMessage>>{};
+    final Map<String, List<StoredMessage>> byThread =
+        <String, List<StoredMessage>>{};
     for (final StoredMessage m in all) {
       byThread.putIfAbsent(m.threadId, () => <StoredMessage>[]).add(m);
     }
 
     final List<ThreadSummary> out = <ThreadSummary>[];
-    for (final MapEntry<String, List<StoredMessage>> entry in byThread.entries) {
+    for (final MapEntry<String, List<StoredMessage>> entry
+        in byThread.entries) {
       final List<StoredMessage> msgs = entry.value;
-      msgs.sort((StoredMessage a, StoredMessage b) => a.utcMs.compareTo(b.utcMs));
+      msgs.sort(
+          (StoredMessage a, StoredMessage b) => a.utcMs.compareTo(b.utcMs));
       final StoredMessage latest = msgs.last;
       final String? preview = await LocalVault.openText(latest);
       final int unread = msgs
@@ -65,7 +75,8 @@ class MessagingService extends ChangeNotifier {
         ),
       );
     }
-    out.sort((ThreadSummary a, ThreadSummary b) => b.lastUtcMs.compareTo(a.lastUtcMs));
+    out.sort((ThreadSummary a, ThreadSummary b) =>
+        b.lastUtcMs.compareTo(a.lastUtcMs));
     _threads = out;
     notifyListeners();
   }

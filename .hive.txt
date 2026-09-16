@@ -1,0 +1,4 @@
+﻿C:\Users\moham\AppData\Local\Pub\Cache\hosted\pub.dev\hive_ce-2.19.3\lib\src\backend\js\backend_manager.dart
+C:\Users\moham\AppData\Local\Pub\Cache\hosted\pub.dev\hive_ce-2.19.3\lib\src\backend\js\native\backend_manager.dart
+C:\Users\moham\AppData\Local\Pub\Cache\hosted\pub.dev\hive_ce-2.19.3\lib\src\backend\stub\backend_manager.dart
+C:\Users\moham\AppData\Local\Pub\Cache\hosted\pub.dev\hive_ce-2.19.3\lib\src\backend\vm\backend_manager.dart

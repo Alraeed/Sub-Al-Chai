@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:hive_ce/hive.dart';
 
 import '../core/crypto/tea_crypto.dart';
+import '../core/utils/safe_log.dart';
 import '../models/peer.dart';
 import '../models/stored_message.dart';
 
@@ -24,7 +25,13 @@ class LocalVault {
 
   static Uint8List _dbKey = Uint8List(0);
 
-  static bool get isOpen => _peers.isOpen;
+  /// The per-install key that seals at-rest boxes. Only meaningful after
+  /// [open]; used by session state to never persist secrets in plaintext.
+  static Uint8List get dbKey => _dbKey;
+
+  /// Safe to call before [open] — reads box state from Hive itself instead of
+  /// touching the late-initialized handles.
+  static bool get isOpen => Hive.isBoxOpen(peersBoxName);
 
   static Future<void> open(Uint8List dbKey) async {
     _dbKey = dbKey;
@@ -33,20 +40,24 @@ class LocalVault {
     _meta = await Hive.openBox<Map>(metaBoxName);
   }
 
-  /// Removes ALL local data (no secure storage touch).
+  /// Removes ALL local data (no secure storage touch). Tolerates being called
+  /// before [open] and leaves Hive ready for a fresh [open] afterwards.
   static Future<void> wipe() async {
-    await _peers.clear();
-    await _messages.clear();
-    await _meta.clear();
     for (final String name in <String>[
       peersBoxName,
       messagesBoxName,
       metaBoxName,
     ]) {
-      if (Hive.isBoxOpen(name)) {
+      try {
+        if (Hive.isBoxOpen(name)) {
+          await Hive.box<Map>(name).clear();
+        }
         await Hive.deleteBoxFromDisk(name);
+      } on Object catch (e) {
+        SafeLog.error('vault', 'wipe of $name failed', e);
       }
     }
+    _dbKey = Uint8List(0);
   }
 
   // ------------------------------------------------------------------ Peers
@@ -100,9 +111,11 @@ class LocalVault {
     required String status,
     int hops = 0,
   }) async {
-    final String messageId = TeaCrypto.randomBytes(16).map(
-      (int b) => b.toRadixString(16).padLeft(2, '0'),
-    ).join();
+    final String messageId = TeaCrypto.randomBytes(16)
+        .map(
+          (int b) => b.toRadixString(16).padLeft(2, '0'),
+        )
+        .join();
     final Uint8List sealed = await TeaCrypto.sealText(
       key: _dbKey,
       text: text,

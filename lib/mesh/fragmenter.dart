@@ -34,7 +34,8 @@ class Fragmenter {
     final List<Uint8List> frames = <Uint8List>[];
     for (int index = 0; index < count; index++) {
       final int start = index * usable;
-      final int end = (start + usable > packet.length) ? packet.length : start + usable;
+      final int end =
+          (start + usable > packet.length) ? packet.length : start + usable;
       final Uint8List chunk = Uint8List.sublistView(packet, start, end);
       final Uint8List frame = Uint8List(frameHeaderLength + chunk.length);
       frame[0] = BleConstants.magicByte0;
@@ -54,7 +55,8 @@ class Fragmenter {
 class FrameAssembler {
   FrameAssembler();
 
-  final LinkedHashMap<String, _Assembly> _pending = LinkedHashMap<String, _Assembly>();
+  final LinkedHashMap<String, _Assembly> _pending =
+      LinkedHashMap<String, _Assembly>();
 
   final Map<String, DateTime> _seen = <String, DateTime>{};
 
@@ -127,7 +129,8 @@ class FrameAssembler {
 
   void _purge(DateTime now) {
     _pending.removeWhere(
-      (String key, _Assembly a) => now.difference(a.createdAt).compareTo(BleConstants.assemblerTtl) > 0,
+      (String key, _Assembly a) =>
+          now.difference(a.createdAt).compareTo(BleConstants.assemblerTtl) > 0,
     );
   }
 }

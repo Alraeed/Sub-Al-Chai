@@ -1,0 +1,7 @@
+﻿lib\app.dart:95:fontFamily: 'Parastoo',
+lib\screens\chat\chat_screen.dart:212:fontFamily: 'Parastoo',
+lib\screens\home\home_shell.dart:141:fontFamily: 'Parastoo',
+lib\screens\onboarding\onboarding_screen.dart:72:fontFamily: 'ArefRuqaa',
+lib\theme\app_theme.dart:8:static const String appFont = 'Parastoo';
+lib\theme\app_theme.dart:9:static const String arefRuqaa = 'ArefRuqaa';
+lib\widgets\avatars.dart:36:fontFamily: 'Parastoo',

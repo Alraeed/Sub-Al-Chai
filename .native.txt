@@ -1,0 +1,25 @@
+﻿
+FullName                                                                                           
+--------                                                                                           
+C:\Ptojects\Sub Al Chai\android\app\src\debug\AndroidManifest.xml                                  
+C:\Ptojects\Sub Al Chai\android\app\src\main\AndroidManifest.xml                                   
+C:\Ptojects\Sub Al Chai\android\app\src\main\java\io\flutter\plugins\GeneratedPluginRegistrant.java
+C:\Ptojects\Sub Al Chai\android\app\src\main\kotlin\com\spillthetea\spill_the_tea\MainActivity.kt  
+C:\Ptojects\Sub Al Chai\android\app\src\main\res\drawable\launch_background.xml                    
+C:\Ptojects\Sub Al Chai\android\app\src\main\res\drawable-v21\launch_background.xml                
+C:\Ptojects\Sub Al Chai\android\app\src\main\res\mipmap-hdpi\ic_launcher.png                       
+C:\Ptojects\Sub Al Chai\android\app\src\main\res\mipmap-mdpi\ic_launcher.png                       
+C:\Ptojects\Sub Al Chai\android\app\src\main\res\mipmap-xhdpi\ic_launcher.png                      
+C:\Ptojects\Sub Al Chai\android\app\src\main\res\mipmap-xxhdpi\ic_launcher.png                     
+C:\Ptojects\Sub Al Chai\android\app\src\main\res\mipmap-xxxhdpi\ic_launcher.png                    
+C:\Ptojects\Sub Al Chai\android\app\src\main\res\values\styles.xml                                 
+C:\Ptojects\Sub Al Chai\android\app\src\main\res\values-night\styles.xml                           
+C:\Ptojects\Sub Al Chai\android\app\src\profile\AndroidManifest.xml                                
+
+
+AppDelegate.swift
+GeneratedPluginRegistrant.h
+GeneratedPluginRegistrant.m
+Info.plist
+Runner-Bridging-Header.h
+SceneDelegate.swift

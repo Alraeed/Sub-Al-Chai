@@ -91,7 +91,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final String text = _input.text.trim();
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.errorNoMessage)),
+        SnackBar(content: Text(AppStrings.errorNoMessage)),
       );
       return;
     }
@@ -103,7 +103,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final Peer? peer = widget.peer;
       if (peer == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(AppStrings.peerLeft)),
+          SnackBar(content: Text(AppStrings.peerLeft)),
         );
         setState(() => _sending = false);
         return;
@@ -164,8 +164,8 @@ class _ChatScreenState extends State<ChatScreen> {
         padding: const EdgeInsets.all(32),
         child: Text(
           _isNeighborhood
-              ? 'هذا موضوع الجوار — كل من حولك بيعرفه.'
-              : 'هذا موضوع خاص — مشفر من طرف لطرف.',
+              ? AppStrings.neighborhoodTopicHint
+              : AppStrings.dmTopicHint,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium,
         ),
@@ -284,7 +284,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _send(),
                 decoration:
-                    const InputDecoration(hintText: AppStrings.chatHint),
+                    InputDecoration(hintText: AppStrings.chatHint),
               ),
             ),
             const SizedBox(width: 8),

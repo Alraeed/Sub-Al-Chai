@@ -30,16 +30,16 @@ class IdentityMaterial {
   final Uint8List dhPublic;
 
   SimpleKeyPair get signKeyPair => SimpleKeyPairData(
-      signSeed,
-      publicKey: SimplePublicKey(signPublic, type: KeyPairType.ed25519),
-      type: KeyPairType.ed25519,
-    );
+        signSeed,
+        publicKey: SimplePublicKey(signPublic, type: KeyPairType.ed25519),
+        type: KeyPairType.ed25519,
+      );
 
   SimpleKeyPair get dhKeyPair => SimpleKeyPairData(
-      dhPrivate,
-      publicKey: SimplePublicKey(dhPublic, type: KeyPairType.x25519),
-      type: KeyPairType.x25519,
-    );
+        dhPrivate,
+        publicKey: SimplePublicKey(dhPublic, type: KeyPairType.x25519),
+        type: KeyPairType.x25519,
+      );
 }
 
 /// Persists the identity under keys scoped to the app on both platforms.
@@ -118,7 +118,8 @@ class SecureIdentityStore {
 
   static String _encode(Uint8List bytes) => base64Encode(bytes);
 
-  static Uint8List _decode(String value) => Uint8List.fromList(base64Decode(value));
+  static Uint8List _decode(String value) =>
+      Uint8List.fromList(base64Decode(value));
 }
 
 /// Tiny local key source — kept separate from package:cryptography usage so

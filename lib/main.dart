@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app.dart';
+import 'l10n/locale_controller.dart';
 import 'services/app_bootstrap.dart';
 import 'theme/app_palette.dart';
 
@@ -20,6 +21,9 @@ Future<void> main() async {
 
   // Hive, identity (create/load), DB key, mesh start.
   await AppBootstrap.getInstance().init();
+
+  // Restore the saved language before the first frame.
+  await LocaleController.getInstance().load();
 
   runApp(const SpillTheTeaApp());
 }

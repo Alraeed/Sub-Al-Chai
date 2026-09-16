@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
 
+import '../../l10n/app_strings.dart';
+
 /// Arabic-first time labels for bubbles and lists.
 abstract final class TimeFormat {
   static String chatTime(int utcMs) {
@@ -11,7 +13,7 @@ abstract final class TimeFormat {
       return DateFormat('HH:mm').format(t);
     }
     if (day == today.subtract(const Duration(days: 1))) {
-      return 'امس';
+      return AppStrings.yesterday;
     }
     return DateFormat('d MMM').format(t);
   }
@@ -25,7 +27,7 @@ abstract final class TimeFormat {
       return DateFormat('HH:mm').format(t);
     }
     if (day == today.subtract(const Duration(days: 1))) {
-      return 'امس';
+      return AppStrings.yesterday;
     }
     return DateFormat('d MMM').format(t);
   }

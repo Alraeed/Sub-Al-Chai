@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'l10n/app_strings.dart';
+import 'l10n/locale_controller.dart';
 import 'mesh/mesh_service.dart';
 import 'screens/home/home_shell.dart';
 import 'screens/onboarding/onboarding_screen.dart';
@@ -10,6 +11,7 @@ import 'services/app_bootstrap.dart';
 import 'services/messaging_service.dart';
 import 'theme/app_palette.dart';
 import 'theme/app_theme.dart';
+import 'widgets/tea_wordmark.dart';
 
 class SpillTheTeaApp extends StatelessWidget {
   const SpillTheTeaApp({super.key});
@@ -22,34 +24,42 @@ class SpillTheTeaApp extends StatelessWidget {
           create: (BuildContext context) => AppBootstrap.getInstance(),
         ),
         ChangeNotifierProvider(
+          create: (BuildContext context) => LocaleController.getInstance(),
+        ),
+        ChangeNotifierProvider(
           create: (BuildContext context) => MeshService.getInstance(),
         ),
         ChangeNotifierProvider(
           create: (BuildContext context) => MessagingService.getInstance(),
         ),
       ],
-      child: MaterialApp(
-        title: AppStrings.appName,
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark,
-        // Full Right-to-Left support — Arabic-first.
-        locale: const Locale('ar'),
-        supportedLocales: const <Locale>[Locale('ar'), Locale('en')],
-        localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        builder: (BuildContext context, Widget? child) {
-          // Ambient lapis vignette behind every route.
-          return DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: AppPalette.ambientGradient,
-            ),
-            child: child ?? const SizedBox.shrink(),
+      child: Consumer<LocaleController>(
+        builder: (BuildContext context, LocaleController locale, Widget? _) {
+          return MaterialApp(
+            title: AppStrings.appName,
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.dark,
+            // Arabic-first; the language toggle flips this (and the
+            // text direction follows the locale automatically).
+            locale: locale.lang.locale,
+            supportedLocales: const <Locale>[Locale('ar'), Locale('en')],
+            localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            builder: (BuildContext context, Widget? child) {
+              // Ambient lapis vignette behind every route.
+              return DecoratedBox(
+                decoration: const BoxDecoration(
+                  gradient: AppPalette.ambientGradient,
+                ),
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+            home: const AppGate(),
           );
         },
-        home: const AppGate(),
       ),
     );
   }
@@ -83,21 +93,10 @@ class _SplashLikeLoad extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Icon(
-              Icons.local_cafe_outlined,
-              size: 64,
-              color: AppPalette.gold,
-            ),
-            SizedBox(height: 16),
-            Text(
-              AppStrings.appName,
-              style: TextStyle(
-                fontFamily: 'Parastoo',
-                fontSize: 30,
-                color: AppPalette.goldLight,
-              ),
-            ),
-            SizedBox(height: 8),
+            // The same lockup the onboarding screen opens with: cup mark,
+            // Arabic name, Latin line.
+            TeaWordmark(markSize: 92),
+            SizedBox(height: 30),
             CircularProgressIndicator(color: AppPalette.brass),
           ],
         ),

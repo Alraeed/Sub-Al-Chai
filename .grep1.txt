@@ -1,0 +1,28 @@
+﻿lib\l10n\app_strings.dart:5:static const String appNameLatin = 'Spill the Tea';
+lib\l10n\app_strings.dart:62:static const String backupExport = 'صدّر الأرشيف';
+lib\mesh\mesh_service.dart:146:await DmSessionStore.open();
+lib\mesh\mesh_service.dart:836:final PreKey preKey = await DmSessionStore.rotatePreKey();
+lib\mesh\mesh_service.dart:865:final OutboundDmState? state = await DmSessionStore.loadOutbound(to.id);
+lib\mesh\mesh_service.dart:920:final PreKey? preKey = await DmSessionStore.preKeyForEpoch(epoch);
+lib\mesh\mesh_service.dart:924:final InboundDmState? loaded = await DmSessionStore.loadInbound(sender.id);
+lib\mesh\mesh_service.dart:948:await DmSessionStore.saveInbound(
+lib\mesh\mesh_service.dart:980:await DmSessionStore.saveInbound(sender.id, advanced);
+lib\mesh\mesh_service.dart:1017:await DmSessionStore.saveInbound(sender.id, advanced);
+lib\mesh\mesh_service.dart:1213:await DmSessionStore.saveOutbound(
+lib\mesh\session_store.dart:16:class DmSessionStore {
+lib\mesh\session_store.dart:17:DmSessionStore._();
+lib\mesh\session_store.dart:342:while (merged.length > DmSessionStore.maxSkipped) {
+lib\screens\onboarding\onboarding_screen.dart:66:const TeaLogo(size: 132),
+lib\screens\onboarding\onboarding_screen.dart:85:const GoldRuleDivider(),
+lib\screens\qr\qr_code_screen.dart:5:import '../../core/utils/qr_payload.dart';
+lib\screens\qr\qr_scan_screen.dart:7:import '../../core/utils/qr_payload.dart';
+lib\storage\backup_service.dart:15:class BackupService {
+lib\storage\backup_service.dart:16:BackupService._();
+lib\storage\local_vault.dart:31:static bool get isOpen => _peers.isOpen;
+lib\widgets\avatars.dart:47:class GoldRuleDivider extends StatelessWidget {
+lib\widgets\avatars.dart:48:const GoldRuleDivider({super.key, this.thickness = 0.8, this.margin = 4});
+lib\widgets\tea_logo.dart:10:class TeaLogo extends StatelessWidget {
+lib\widgets\tea_logo.dart:11:const TeaLogo({super.key, this.size = 128});
+lib\widgets\tea_logo.dart:19:painter: _TeaLogoPainter(),
+lib\widgets\tea_logo.dart:24:class _TeaLogoPainter extends CustomPainter {
+test\core_test.dart:7:import 'package:spill_the_tea/core/utils/qr_payload.dart';

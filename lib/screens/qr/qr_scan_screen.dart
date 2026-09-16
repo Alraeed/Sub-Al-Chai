@@ -86,21 +86,20 @@ class _QrScanScreenState extends State<QrScanScreen> {
             TextEditingController(text: identity.displayName);
         return AlertDialog(
           backgroundColor: AppPalette.lapisHigh,
-          title: const Text(AppStrings.pairingIdHint),
+          title: Text(AppStrings.pairingIdHint),
           content: TextField(
             controller: alias,
             autofocus: true,
-            decoration: const InputDecoration(hintText: AppStrings.nameHint),
+            decoration: InputDecoration(hintText: AppStrings.nameHint),
           ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text(AppStrings.cancel),
+              child: Text(AppStrings.cancel),
             ),
             ElevatedButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(alias.text.trim()),
-              child: const Text(AppStrings.continueGold),
+              onPressed: () => Navigator.of(context).pop(alias.text.trim()),
+              child: Text(AppStrings.continueGold),
             ),
           ],
         );
@@ -120,7 +119,7 @@ class _QrScanScreenState extends State<QrScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.scanFriend)),
+      appBar: AppBar(title: Text(AppStrings.scanFriend)),
       body: MobileScanner(
         controller: _controller,
         onDetect: _onDetect,

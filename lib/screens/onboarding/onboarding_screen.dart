@@ -1,14 +1,17 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../l10n/app_strings.dart';
+import '../../l10n/locale_controller.dart';
 import '../../services/app_bootstrap.dart';
 import '../../theme/app_palette.dart';
 import '../../widgets/avatars.dart';
-import '../../widgets/tea_logo.dart';
+import '../../widgets/tea_wordmark.dart';
 
-/// First launch: choose how people will call you. One field, gold button.
+/// First launch: the brand lockup, an intro, two honest explainers (how the
+/// app works, how Bluetooth messaging works), a language toggle, then one
+/// name field and a gold button. Nothing else.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -55,54 +58,38 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch the locale so the toggle re-renders the whole intro in place.
+    context.watch<LocaleController>();
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              const SizedBox(height: 24),
-              const TeaLogo(size: 132),
-              const SizedBox(height: 22),
-              const Text(
-                AppStrings.proverb,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'ArefRuqaa',
-                  fontSize: 27,
-                  color: AppPalette.goldLight,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                AppStrings.tagline,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 64),
+              // Cup mark + Arabic name + Latin line as one lockup.
+              const TeaWordmark(markSize: 128),
+              const SizedBox(height: 26),
+              const _LanguageToggle(),
+              const SizedBox(height: 56),
               const GoldRuleDivider(),
-              const SizedBox(height: 28),
-              Text(
-                AppStrings.onboardingIntro,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 26),
+              // The one thing we ask for.
               TextField(
                 controller: _name,
                 enabled: !_busy,
                 textAlign: TextAlign.center,
                 maxLength: 48,
                 style: const TextStyle(color: AppPalette.ivory, fontSize: 17),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: AppStrings.nameHint,
                   counterText: '',
                 ),
                 onSubmitted: (_) => _continue(),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -117,16 +104,77 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         )
                       : const Icon(Icons.local_cafe_outlined, size: 20),
-                  label: const Text(AppStrings.startBrewing),
+                  label: Text(AppStrings.startBrewing),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'iOS/Android · يعمل بدون إنترنت بالكامل',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------- language
+
+/// The AR ⇄ EN switch: a carved-stone pill with two chambers, the active one
+/// filled with gold leaf.
+class _LanguageToggle extends StatelessWidget {
+  const _LanguageToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final LocaleController locale = context.watch<LocaleController>();
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppPalette.lapisMid.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppPalette.dividerGold, width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _chamber(
+            context,
+            label: AppStrings.langAr,
+            selected: locale.lang == AppLang.ar,
+            onTap: () => locale.setLang(AppLang.ar),
+          ),
+          _chamber(
+            context,
+            label: AppStrings.langEn,
+            selected: locale.lang == AppLang.en,
+            onTap: () => locale.setLang(AppLang.en),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chamber(
+    BuildContext context, {
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? AppPalette.gold : Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Parastoo',
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: selected ? AppPalette.ground : AppPalette.ivoryDim,
+            ),
           ),
         ),
       ),
@@ -139,7 +187,7 @@ Future<void> copyToClipboard(BuildContext context, String value) async {
   await Clipboard.setData(ClipboardData(text: value));
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text(AppStrings.done)),
+      SnackBar(content: Text(AppStrings.done)),
     );
   }
 }

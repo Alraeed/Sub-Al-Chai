@@ -7,6 +7,10 @@ import 'app_palette.dart';
 abstract final class AppTypography {
   static const String appFont = 'Parastoo';
   static const String arefRuqaa = 'ArefRuqaa';
+
+  /// Kufic-inspired display face declared in `pubspec.yaml`; used for the
+  /// brand lockup, where the geometric letterforms carry the mark.
+  static const String reemKufi = 'ReemKufi';
 }
 
 class AppTheme {

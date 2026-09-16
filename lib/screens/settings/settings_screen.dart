@@ -2,18 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../l10n/app_strings.dart';
+import '../../l10n/locale_controller.dart';
 import '../../mesh/mesh_service.dart';
 import '../../services/app_bootstrap.dart';
 import '../../theme/app_palette.dart';
 import '../../widgets/avatars.dart';
+import '../../widgets/explainers.dart';
 
-/// الإعدادات — identity, security posture, relay, destructive actions.
+/// الإعدادات — language, identity, security posture, destructive actions.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final AppBootstrap bootstrap = context.watch<AppBootstrap>();
+    final LocaleController locale = context.watch<LocaleController>();
     final MeshService mesh = context.watch<MeshService>();
     final String name = bootstrap.displayName ?? AppStrings.appName;
 
@@ -29,6 +32,14 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 18),
           _identityCard(context, name, mesh),
           const SizedBox(height: 18),
+          _section(context, AppStrings.langSection, <Widget>[
+            _languageToggle(context, locale),
+          ]),
+          const SizedBox(height: 12),
+          const HowItWorksSection(),
+          const SizedBox(height: 12),
+          const BluetoothCard(),
+          const SizedBox(height: 12),
           _section(context, AppStrings.securitySection, <Widget>[
             Padding(
               padding: const EdgeInsets.all(14),
@@ -43,7 +54,8 @@ class SettingsScreen extends StatelessWidget {
             SwitchListTile(
               value: mesh.relayEnabled,
               onChanged: mesh.setRelayEnabled,
-              title: Text(mesh.relayEnabled ? AppStrings.relayOn : AppStrings.relayOff),
+              title: Text(
+                  mesh.relayEnabled ? AppStrings.relayOn : AppStrings.relayOff),
               activeTrackColor: AppPalette.turquoise,
               inactiveTrackColor: AppPalette.brass.withValues(alpha: 0.4),
               secondary: const Icon(Icons.sync_alt, color: AppPalette.gold),
@@ -52,16 +64,60 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 12),
           _section(context, AppStrings.dangerZone, <Widget>[
             ListTile(
-              leading: const Icon(Icons.delete_sweep_outlined, color: AppPalette.pomegranate),
-              title: const Text(
+              leading: const Icon(Icons.delete_sweep_outlined,
+                  color: AppPalette.pomegranate),
+              title: Text(
                 AppStrings.eraseAll,
-                style: TextStyle(color: AppPalette.pomegranate),
+                style: const TextStyle(color: AppPalette.pomegranate),
               ),
               onTap: () => _confirmErase(context),
             ),
           ]),
         ],
       ),
+    );
+  }
+
+  /// AR ⇄ EN chambers, the same gold-leaf pill the onboarding screen uses.
+  Widget _languageToggle(BuildContext context, LocaleController locale) {
+    Widget chamber(String label, AppLang value) {
+      final bool selected = locale.lang == value;
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+          child: Material(
+            color: selected ? AppPalette.gold : AppPalette.lapisHigh,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => locale.setLang(value),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                child: Center(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: 'Parastoo',
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color:
+                          selected ? AppPalette.ground : AppPalette.ivoryDim,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: <Widget>[
+        chamber(AppStrings.langAr, AppLang.ar),
+        const SizedBox(width: 10),
+        chamber(AppStrings.langEn, AppLang.en),
+      ],
     );
   }
 
@@ -85,7 +141,8 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '${AppStrings.friendlyCode}: ${mesh.myFriendlyCode}',
-                  style: const TextStyle(color: AppPalette.turquoise, fontSize: 13),
+                  style: const TextStyle(
+                      color: AppPalette.turquoise, fontSize: 13),
                 ),
               ],
             ),
@@ -129,18 +186,18 @@ class SettingsScreen extends StatelessWidget {
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: AppPalette.lapisHigh,
-          title: const Text(AppStrings.eraseAll),
-          content: const Text(AppStrings.eraseConfirm),
+          title: Text(AppStrings.eraseAll),
+          content: Text(AppStrings.eraseConfirm),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(AppStrings.cancel),
+              child: Text(AppStrings.cancel),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text(
+              child: Text(
                 AppStrings.eraseAll,
-                style: TextStyle(color: AppPalette.pomegranate),
+                style: const TextStyle(color: AppPalette.pomegranate),
               ),
             ),
           ],

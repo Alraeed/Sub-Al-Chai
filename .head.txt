@@ -1,0 +1,3 @@
+﻿const RadarPeer({required this.peer, required this.linked});
+
+  /// The stored identity behind this lantern. Carried along so the UI can open

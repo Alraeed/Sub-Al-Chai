@@ -39,7 +39,8 @@ Future<Uint8List> buildHello({
   at += 8;
 
   final Uint8List toSign = Uint8List.sublistView(packet, 0, at);
-  final Signature signature = await Ed25519().sign(toSign, keyPair: signKeyPair);
+  final Signature signature =
+      await Ed25519().sign(toSign, keyPair: signKeyPair);
   packet.setAll(at, signature.bytes);
   return packet;
 }

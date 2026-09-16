@@ -1,0 +1,8 @@
+﻿00:00 +0: loading C:/Ptojects/Sub Al Chai/test/wordmark_test.dart
+00:00 +0: TeaWordmark carries the cup mark, the Arabic name and the Latin line
+00:00 +1: TeaWordmark keeps each run in its own direction, in RTL and in LTR
+00:00 +2: TeaWordmark gives the Arabic to English step one deliberate gap
+00:00 +3: TeaWordmark the mark scales with markSize and stays above the name
+00:00 +4: TeaWordmark the tagline is optional and sits under the Latin line
+00:00 +5: TeaWordmark announces the name once, not once per element
+00:00 +6: All tests passed!
